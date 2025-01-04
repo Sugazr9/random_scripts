@@ -1,11 +1,18 @@
 import requests
-import json
 import eyed3
 import os
-from datetime import datetime
 
 
-def searchNnarrow(search_info, song_mode, comparison, second_try=False):
+def searchNnarrow(search_info: str, song_mode: bool, comparison: dict) -> tuple:
+	"""
+	Function that searches iTunes using iTunes API to obtain track or album information. Search results are narrowed
+	down by comparing to track/album details passed into the function
+
+	:param search_info: search info used for the API search
+	:param song_mode: whether the search is for a song or an album
+	:param comparison: a dictionary containing track/album info to compare to and narrow down search results
+	:return:
+	"""
 	base_url = 'https://itunes.apple.com/search?term='
 	add_criteria_song = "&entity=song"
 	add_criteria_album = "&entity=album"
@@ -33,7 +40,7 @@ def searchNnarrow(search_info, song_mode, comparison, second_try=False):
 				search_track = search['trackName']
 				lower_search_artist = search_artist.lower()
 				lower_search_track = search_track.lower()
-				if ((artist in lower_search_track or artist in lower_search_artist) and track_name in lower_search_track) and i == 0:	
+				if (artist in lower_search_track or artist in lower_search_artist) and track_name in lower_search_track and i == 0:
 					dets = [search_track, search_artist, search_album]
 				elif i == 1:
 					dets = [search_track, search_artist, search_album]
@@ -48,7 +55,7 @@ def searchNnarrow(search_info, song_mode, comparison, second_try=False):
 				else:
 					continue
 			if dets in cache:
-					continue
+				continue
 			cache.append(dets)
 			reduced.append(search)
 		if len(reduced) > 0:
@@ -60,10 +67,11 @@ def searchNnarrow(search_info, song_mode, comparison, second_try=False):
 		if song_mode:
 			search_track = curr['trackName']
 			print_message = 'Option ' + str(i) + ': {track:' + search_track + ', artist:' + search_artist + ', album:' + search_album + "}"
+			print_message = f'Option {i}: {{track: {search_track}, artist: {search_artist}, album: {search_album}}}'
 		else:
 			print_message = 'Option ' + str(i) + ': {album:' + search_album + ', artist:' + search_artist + "}"
+			print_message = f'Option {i}: {{album: {search_album}, artist: {search_artist}}}'
 		print(print_message)
-	search_num = None
 	move_on = False
 	chosen_one = None
 	while True:
@@ -73,18 +81,21 @@ def searchNnarrow(search_info, song_mode, comparison, second_try=False):
 			break
 		num_response = search_num.isnumeric()
 		if num_response and int(search_num) in range(len(reduced)):
-			print("Chose option: " + search_num)
+			print(f"Chose option: {search_num}")
 			chosen_one = reduced[int(search_num)]
 			break
 	return move_on, chosen_one
 
 
-
 directory = "C:/Users/go_ar/Music/Name Modified/"
 destination = "C:/Users/go_ar/Music/Metadata Added/"
 
+tracking = {}
 for file in os.listdir(directory):
-	print("The file you are currently editing is: " + file)
+	tracking[file] = "Nothing"
+
+for file in os.listdir(directory):
+	print(f"The file you are currently editing is: {file}")
 	edit = input("Want to edit this file?(Y/y)")
 	if edit.lower() != 'y':
 		pass
@@ -106,20 +117,22 @@ for file in os.listdir(directory):
 		if track_not_found:
 			tags = None
 			continue
-		tags._setArtist(chosen_search['artistName'])
-		tags._setTitle(chosen_search['trackName'])
-		tags._setAlbum(chosen_search['collectionName'])
-		tags._setGenre(chosen_search['primaryGenreName'])
+		tags.title = chosen_search['trackName']
+		tags.artist = chosen_search['artistName']
+		tags.album = chosen_search['collectionName']
+		tags.genre = chosen_search['primaryGenreName']
 		tags.artist_url = chosen_search['artistViewUrl']
 		tags.audio_file_url = chosen_search['trackViewUrl']
-		tags._setDiscNum(chosen_search['discNumber'])
-		tags._setReleaseDate(chosen_search['releaseDate'])
-		tags._setTrackNum((chosen_search['trackNumber'], chosen_search['trackCount']))
-		import pdb; pdb.set_trace()
+		tags.disc_num = (chosen_search['discNumber'], None)
+		tags.release_date = eyed3.core.Date(chosen_search['releaseDate'])
+		tags.track_num = (chosen_search['trackNumber'], chosen_search['trackCount'])
+		tags.comments = None
 		try:
 			tags.save()
+			tracking[file] = "Track Details"
 		except UnicodeEncodeError as e:
-			print(e)
+			print(f"Unable to add track details to {file}. Displaying error message and moving on")
+			print(f"{e}\n")
 			tags = None
 			continue
 		album_not_found = True
@@ -128,8 +141,36 @@ for file in os.listdir(directory):
 			album_not_found, chosen_album = searchNnarrow(search_info=search_criteria1, song_mode=False,  comparison={'album': tags.album})
 			if album_not_found:
 				search_criteria1 = input("What is your album search criteria? (Only alphanumeric searches) ")
-		tags._setAlbumArtist(chosen_album['artistName'])
-		tags.save()
-		tags = None
+		tags.album_artist = chosen_album['artistName']
+		try:
+			tags.save()
+			tracking[file] = "Album Artist"
+		except UnicodeEncodeError as e:
+			print(f"Unable to add album artist to {file}. Displaying error message and moving on")
+			print(f"{e}\n")
+			tags = None
+			continue
 
+		tags = None
 		os.rename(path, new_path)
+		tracking[file] = "Success"
+
+print("\nThese files were unsuccessful:")
+for file, status in tracking.items():
+	if status == "Nothing":
+		print(file)
+
+print("\nThese files had track details modified:")
+for file, status in tracking.items():
+	if status == "Track Details":
+		print(file)
+
+print("\nThese files had album artist modified:")
+for file, status in tracking.items():
+	if status == "Album Artist":
+		print(file)
+
+print("\nThese files were successful:")
+for file, status in tracking.items():
+	if status == "Success":
+		print(file)
