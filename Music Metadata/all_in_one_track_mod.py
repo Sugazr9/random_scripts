@@ -71,10 +71,8 @@ def searchNnarrow(search_info: str, song_mode: bool, comparison: dict) -> tuple:
         search_artist = curr['artistName']
         if song_mode:
             search_track = curr['trackName']
-            print_message = 'Option ' + str(i) + ': {track:' + search_track + ', artist:' + search_artist + ', album:' + search_album + "}"
             print_message = f'Option {i}: {{track: {search_track}, artist: {search_artist}, album: {search_album}}}'
         else:
-            print_message = 'Option ' + str(i) + ': {album:' + search_album + ', artist:' + search_artist + "}"
             print_message = f'Option {i}: {{album: {search_album}, artist: {search_artist}}}'
         print(print_message)
     move_on = False
@@ -145,8 +143,8 @@ for file in os.listdir(origin_dir):
             tags = None
             continue
 
-        path = os.path.join(named_dir, file)
-        new_path = os.path.join(details_dir, file)
+        path = os.path.join(named_dir, new_file_name)
+        new_path = os.path.join(details_dir, new_file_name)
         track = eyed3.load(path)
         tags = track.tag
         track_name = tags.title
@@ -168,10 +166,10 @@ for file in os.listdir(origin_dir):
         tags.genre = chosen_search['primaryGenreName']
         tags.artist_url = chosen_search['artistViewUrl']
         tags.audio_file_url = chosen_search['trackViewUrl']
-        tags.disc_num = (chosen_search['discNumber'], None)
-        tags.release_date = eyed3.core.Date(chosen_search['releaseDate'])
+        tags.disc_num = (chosen_search['discNumber'], chosen_search['discCount'])
+        tags.release_date = eyed3.core.Date.parse(chosen_search['releaseDate'])
         tags.track_num = (chosen_search['trackNumber'], chosen_search['trackCount'])
-        tags.comments = None
+        tags.comments.set("")
         try:
             tags.save()
             tracking[file] = "Track Details"
